@@ -33,8 +33,10 @@ def _channel_display_name(channel_ref: str) -> str:
 def main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Videos", callback_data="category_video")],
-            [InlineKeyboardButton(text="Music", callback_data="category_music")],
+            [
+                InlineKeyboardButton(text="Videos", callback_data="category_video"),
+                InlineKeyboardButton(text="Music", callback_data="category_music"),
+            ],
             [
                 InlineKeyboardButton(text="Search", callback_data="search"),
                 InlineKeyboardButton(text="My Library", callback_data="my_library"),
@@ -107,8 +109,10 @@ def required_channels_keyboard(
 def library_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Favorites", callback_data="library_favorites")],
-            [InlineKeyboardButton(text="Playlists", callback_data="library_playlists")],
+            [
+                InlineKeyboardButton(text="Favorites", callback_data="library_favorites"),
+                InlineKeyboardButton(text="Playlists", callback_data="library_playlists"),
+            ],
             [InlineKeyboardButton(text="Back", callback_data="back_to_main")],
         ]
     )
@@ -121,8 +125,10 @@ def item_actions_keyboard(item_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="Favorite", callback_data=f"fav_add_{item_id}"),
                 InlineKeyboardButton(text="Unfavorite", callback_data=f"fav_remove_{item_id}"),
             ],
-            [InlineKeyboardButton(text="Add to Playlist", callback_data=f"pl_pick_{item_id}")],
-            [InlineKeyboardButton(text="My Library", callback_data="my_library")],
+            [
+                InlineKeyboardButton(text="Add to Playlist", callback_data=f"pl_pick_{item_id}"),
+                InlineKeyboardButton(text="My Library", callback_data="my_library"),
+            ],
         ]
     )
 
@@ -137,7 +143,7 @@ def playlists_keyboard(
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"{_truncate_title(name, 40)} ({items_count})",
+                    text=f"{_truncate_title(name, 28)} ({items_count})",
                     callback_data=f"playlist_open_{playlist_id}",
                 ),
                 InlineKeyboardButton(
