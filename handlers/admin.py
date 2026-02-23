@@ -37,6 +37,14 @@ class Upload(StatesGroup):
     waiting_for_file = State()
 
 
+class BulkMusicUpload(StatesGroup):
+    waiting_for_files = State()
+
+
+class BulkVideoUpload(StatesGroup):
+    waiting_for_files = State()
+
+
 class Broadcast(StatesGroup):
     waiting_for_message = State()
 
@@ -46,12 +54,15 @@ def _admin_help_text() -> str:
         "Admin commands:\n"
         "/addvideo - Add a new video\n"
         "/addmusic - Add a new music track\n"
+        "/addvideobulk - Add many videos in one session\n"
+        "/addmusicbulk - Add many music tracks in one session\n"
         "/broadcast - Broadcast any message to all users\n"
         "/health - Service and database health\n"
         "/setmoderator <id> - Grant moderator role\n"
         "/removemoderator <id> - Revoke moderator role\n"
         "/export_content - Export full JSON backup\n"
         "/audit [n] - Show recent audit logs\n"
+        "/done - Finish bulk upload session\n"
         "\n"
         "Staff commands:\n"
         "/stats - Show usage stats\n"
@@ -160,6 +171,8 @@ async def cmd_admin(message: types.Message) -> None:
         Upload.waiting_for_title,
         Upload.waiting_for_metadata,
         Upload.waiting_for_file,
+        BulkMusicUpload.waiting_for_files,
+        BulkVideoUpload.waiting_for_files,
         Broadcast.waiting_for_message,
     ),
 )
@@ -195,6 +208,240 @@ async def cmd_addmusic(message: types.Message, state: FSMContext) -> None:
     await state.set_state(Upload.waiting_for_title)
     await state.update_data(category="music")
     await message.answer("Send the music title. Use /cancel to abort.")
+
+
+@router.message(Command("addmusicbulk"))
+async def cmd_addmusicbulk(message: types.Message, state: FSMContext) -> None:
+    if not await _require_admin(message):
+        return
+
+    await state.clear()
+    await state.set_state(BulkMusicUpload.waiting_for_files)
+    await state.update_data(
+        bulk_category="music",
+        bulk_total=0,
+        bulk_new=0,
+        bulk_updated=0,
+    )
+    await message.answer(
+        "Bulk music upload started.\n"
+        "Send audio files one by one.\n"
+        "Optional caption format:\n"
+        "My Song Title | artist=Name;genre=Pop;tags=tag1,tag2\n"
+        "Use /done to finish, /cancel to abort."
+    )
+
+
+@router.message(Command("addvideobulk"))
+async def cmd_addvideobulk(message: types.Message, state: FSMContext) -> None:
+    if not await _require_admin(message):
+        return
+
+    await state.clear()
+    await state.set_state(BulkVideoUpload.waiting_for_files)
+    await state.update_data(
+        bulk_category="video",
+        bulk_total=0,
+        bulk_new=0,
+        bulk_updated=0,
+    )
+    await message.answer(
+        "Bulk video upload started.\n"
+        "Send video files one by one.\n"
+        "Optional caption format:\n"
+        "My Video Title | genre=Education;tags=tutorial,lesson;language=en\n"
+        "Use /done to finish, /cancel to abort."
+    )
+
+
+def _extract_bulk_title_and_metadata(message: types.Message) -> tuple[str, dict[str, object]]:
+    if not message.audio:
+        return ("", {})
+
+    caption = (message.caption or "").strip()
+    metadata: dict[str, object] = {}
+    title_from_caption = ""
+
+    if caption:
+        if "|" in caption:
+            raw_title, raw_meta = caption.split("|", 1)
+            title_from_caption = raw_title.strip()
+            metadata = _parse_metadata_input(raw_meta.strip())
+        else:
+            title_from_caption = caption
+
+    title = (
+        title_from_caption
+        or (message.audio.title or "").strip()
+        or (message.audio.file_name or "").strip()
+        or f"Track {message.audio.file_unique_id[:8]}"
+    )
+
+    if message.audio.performer:
+        metadata.setdefault("artist", message.audio.performer)
+    if message.audio.duration:
+        metadata.setdefault("duration", message.audio.duration)
+
+    return title, metadata
+
+
+def _extract_bulk_video_title_and_metadata(message: types.Message) -> tuple[str, dict[str, object]]:
+    if not message.video:
+        return ("", {})
+
+    caption = (message.caption or "").strip()
+    metadata: dict[str, object] = {}
+    title_from_caption = ""
+
+    if caption:
+        if "|" in caption:
+            raw_title, raw_meta = caption.split("|", 1)
+            title_from_caption = raw_title.strip()
+            metadata = _parse_metadata_input(raw_meta.strip())
+        else:
+            title_from_caption = caption
+
+    title = title_from_caption or f"Video {message.video.file_unique_id[:8]}"
+    if message.video.duration:
+        metadata.setdefault("duration", message.video.duration)
+    return title, metadata
+
+
+@router.message(
+    Command("done"),
+    StateFilter(BulkMusicUpload.waiting_for_files, BulkVideoUpload.waiting_for_files),
+)
+async def cmd_done_bulk_upload(message: types.Message, state: FSMContext) -> None:
+    if not await _require_admin(message):
+        return
+
+    data = await state.get_data()
+    bulk_category = str(data.get("bulk_category", "music"))
+    total = int(data.get("bulk_total", 0))
+    created = int(data.get("bulk_new", 0))
+    updated = int(data.get("bulk_updated", 0))
+    await state.clear()
+
+    await message.answer(
+        "Bulk upload finished.\n"
+        f"Processed: {total}\n"
+        f"New: {created}\n"
+        f"Duplicates updated: {updated}"
+    )
+
+    log_audit_event(
+        actor_id=message.from_user.id,
+        action=f"bulk_{bulk_category}_upload_finished",
+        target_type="content",
+        details={
+            "category": bulk_category,
+            "processed": total,
+            "new": created,
+            "updated": updated,
+        },
+    )
+
+
+@router.message(BulkMusicUpload.waiting_for_files, F.audio)
+async def process_bulk_music_file(message: types.Message, state: FSMContext) -> None:
+    if not is_admin_user(message.from_user.id):
+        await state.clear()
+        await message.answer("Only admins can upload content.")
+        return
+
+    if not message.audio:
+        await message.answer("Please send an audio file.")
+        return
+
+    title, metadata = _extract_bulk_title_and_metadata(message)
+    content_id, is_new = add_content(
+        title,
+        "music",
+        message.audio.file_id,
+        file_unique_id=message.audio.file_unique_id,
+        metadata=metadata,
+        uploaded_by=message.from_user.id,
+    )
+
+    data = await state.get_data()
+    total = int(data.get("bulk_total", 0)) + 1
+    created = int(data.get("bulk_new", 0)) + (1 if is_new else 0)
+    updated = int(data.get("bulk_updated", 0)) + (0 if is_new else 1)
+    await state.update_data(bulk_total=total, bulk_new=created, bulk_updated=updated)
+
+    if is_new:
+        await message.answer(f"Saved [{total}] ID {content_id}: {title}")
+    else:
+        await message.answer(f"Duplicate updated [{total}] ID {content_id}: {title}")
+
+    log_audit_event(
+        actor_id=message.from_user.id,
+        action="content_uploaded" if is_new else "content_deduplicated",
+        target_type="content",
+        target_id=content_id,
+        details={
+            "category": "music",
+            "title": title,
+            "file_unique_id": message.audio.file_unique_id,
+            "bulk_mode": True,
+        },
+    )
+
+
+@router.message(BulkMusicUpload.waiting_for_files)
+async def process_bulk_music_invalid(message: types.Message) -> None:
+    await message.answer("Bulk mode expects audio files only. Send audio, /done, or /cancel.")
+
+
+@router.message(BulkVideoUpload.waiting_for_files, F.video)
+async def process_bulk_video_file(message: types.Message, state: FSMContext) -> None:
+    if not is_admin_user(message.from_user.id):
+        await state.clear()
+        await message.answer("Only admins can upload content.")
+        return
+
+    if not message.video:
+        await message.answer("Please send a video file.")
+        return
+
+    title, metadata = _extract_bulk_video_title_and_metadata(message)
+    content_id, is_new = add_content(
+        title,
+        "video",
+        message.video.file_id,
+        file_unique_id=message.video.file_unique_id,
+        metadata=metadata,
+        uploaded_by=message.from_user.id,
+    )
+
+    data = await state.get_data()
+    total = int(data.get("bulk_total", 0)) + 1
+    created = int(data.get("bulk_new", 0)) + (1 if is_new else 0)
+    updated = int(data.get("bulk_updated", 0)) + (0 if is_new else 1)
+    await state.update_data(bulk_total=total, bulk_new=created, bulk_updated=updated)
+
+    if is_new:
+        await message.answer(f"Saved [{total}] ID {content_id}: {title}")
+    else:
+        await message.answer(f"Duplicate updated [{total}] ID {content_id}: {title}")
+
+    log_audit_event(
+        actor_id=message.from_user.id,
+        action="content_uploaded" if is_new else "content_deduplicated",
+        target_type="content",
+        target_id=content_id,
+        details={
+            "category": "video",
+            "title": title,
+            "file_unique_id": message.video.file_unique_id,
+            "bulk_mode": True,
+        },
+    )
+
+
+@router.message(BulkVideoUpload.waiting_for_files)
+async def process_bulk_video_invalid(message: types.Message) -> None:
+    await message.answer("Bulk mode expects video files only. Send video, /done, or /cancel.")
 
 
 @router.message(Upload.waiting_for_title)

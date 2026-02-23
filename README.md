@@ -16,7 +16,7 @@ Professional Telegram bot for sharing videos and music with role-based managemen
   - `moderator`
   - `admin`
 - Admin tools:
-  - Add media (`/addvideo`, `/addmusic`)
+  - Add media (`/addvideo`, `/addvideobulk`, `/addmusic`, `/addmusicbulk`)
   - Broadcast messages (`/broadcast`)
   - Health report (`/health`)
   - Export backup (`/export_content`)
@@ -142,7 +142,10 @@ python migrate_sqlite_to_mongo.py
 
 - `/admin`
 - `/addvideo`
+- `/addvideobulk`
 - `/addmusic`
+- `/addmusicbulk`
+- `/done` (finish bulk upload mode)
 - `/broadcast`
 - `/health`
 - `/setmoderator <id>`

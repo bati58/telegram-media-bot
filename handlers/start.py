@@ -52,13 +52,16 @@ def _build_help_text(user_id: int) -> str:
                 "Admin commands:",
                 "/admin - Show admin command list",
                 "/addvideo - Add a video",
+                "/addvideobulk - Bulk upload video files",
                 "/addmusic - Add a music track",
+                "/addmusicbulk - Bulk upload music files",
                 "/broadcast - Broadcast any message to users",
                 "/health - Service and DB health",
                 "/setmoderator <id> - Grant moderator role",
                 "/removemoderator <id> - Revoke moderator role",
                 "/export_content - Export backup JSON",
                 "/audit [n] - Show recent audit logs",
+                "/done - Finish bulk upload session",
                 "/cancel - Cancel current admin action",
             ]
         )
