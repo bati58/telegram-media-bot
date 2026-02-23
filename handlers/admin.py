@@ -63,6 +63,7 @@ def _admin_help_text() -> str:
         "/export_content - Export full JSON backup\n"
         "/audit [n] - Show recent audit logs\n"
         "/done - Finish bulk upload session\n"
+        "File caption format: Title | artist=Name;genre=Pop;tags=tag1,tag2\n"
         "\n"
         "Staff commands:\n"
         "/stats - Show usage stats\n"
@@ -143,6 +144,18 @@ def _parse_metadata_input(raw_input: str) -> dict[str, object]:
     return metadata
 
 
+def _parse_caption_payload(caption: str | None) -> tuple[str, dict[str, object]]:
+    raw_caption = (caption or "").strip()
+    if not raw_caption:
+        return "", {}
+
+    if "|" in raw_caption:
+        raw_title, raw_meta = raw_caption.split("|", 1)
+        return raw_title.strip(), _parse_metadata_input(raw_meta.strip())
+
+    return raw_caption, {}
+
+
 async def _require_admin(message: types.Message) -> bool:
     if not is_admin_user(message.from_user.id):
         await message.answer("This command is available to admins only.")
@@ -196,7 +209,11 @@ async def cmd_addvideo(message: types.Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(Upload.waiting_for_title)
     await state.update_data(category="video")
-    await message.answer("Send the video title. Use /cancel to abort.")
+    await message.answer(
+        "Send the video title. Use /cancel to abort.\n"
+        "Tip: while sending the file, caption can override title/metadata:\n"
+        "My Video Title | genre=Education;tags=tutorial,lesson;language=en"
+    )
 
 
 @router.message(Command("addmusic"))
@@ -207,7 +224,11 @@ async def cmd_addmusic(message: types.Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(Upload.waiting_for_title)
     await state.update_data(category="music")
-    await message.answer("Send the music title. Use /cancel to abort.")
+    await message.answer(
+        "Send the music title. Use /cancel to abort.\n"
+        "Tip: while sending the file, caption can override title/metadata:\n"
+        "My Song Title | artist=Name;genre=Pop;tags=tag1,tag2"
+    )
 
 
 @router.message(Command("addmusicbulk"))
@@ -258,17 +279,7 @@ def _extract_bulk_title_and_metadata(message: types.Message) -> tuple[str, dict[
     if not message.audio:
         return ("", {})
 
-    caption = (message.caption or "").strip()
-    metadata: dict[str, object] = {}
-    title_from_caption = ""
-
-    if caption:
-        if "|" in caption:
-            raw_title, raw_meta = caption.split("|", 1)
-            title_from_caption = raw_title.strip()
-            metadata = _parse_metadata_input(raw_meta.strip())
-        else:
-            title_from_caption = caption
+    title_from_caption, metadata = _parse_caption_payload(message.caption)
 
     title = (
         title_from_caption
@@ -289,17 +300,7 @@ def _extract_bulk_video_title_and_metadata(message: types.Message) -> tuple[str,
     if not message.video:
         return ("", {})
 
-    caption = (message.caption or "").strip()
-    metadata: dict[str, object] = {}
-    title_from_caption = ""
-
-    if caption:
-        if "|" in caption:
-            raw_title, raw_meta = caption.split("|", 1)
-            title_from_caption = raw_title.strip()
-            metadata = _parse_metadata_input(raw_meta.strip())
-        else:
-            title_from_caption = caption
+    title_from_caption, metadata = _parse_caption_payload(message.caption)
 
     title = title_from_caption or f"Video {message.video.file_unique_id[:8]}"
     if message.video.duration:
@@ -444,7 +445,7 @@ async def process_bulk_video_invalid(message: types.Message) -> None:
     await message.answer("Bulk mode expects video files only. Send video, /done, or /cancel.")
 
 
-@router.message(Upload.waiting_for_title)
+@router.message(Upload.waiting_for_title, F.text)
 async def process_title(message: types.Message, state: FSMContext) -> None:
     if not is_admin_user(message.from_user.id):
         await state.clear()
@@ -452,6 +453,16 @@ async def process_title(message: types.Message, state: FSMContext) -> None:
         return
 
     title = (message.text or "").strip()
+    if title == "/skip":
+        await state.update_data(title="", metadata={})
+        await state.set_state(Upload.waiting_for_file)
+        await message.answer(
+            "Title/metadata skipped. Now send the media file.\n"
+            "Optional file caption format:\n"
+            "Title | artist=Name;genre=Pop;tags=tag1,tag2"
+        )
+        return
+
     if not title:
         await message.answer("Title cannot be empty. Send a valid title.")
         return
@@ -464,11 +475,34 @@ async def process_title(message: types.Message, state: FSMContext) -> None:
     )
 
 
+@router.message(Upload.waiting_for_title, F.video | F.audio)
+async def process_file_from_title_step(message: types.Message, state: FSMContext) -> None:
+    if not is_admin_user(message.from_user.id):
+        await state.clear()
+        await message.answer("Only admins can upload content.")
+        return
+
+    await state.update_data(title="", metadata={})
+    await state.set_state(Upload.waiting_for_file)
+    await process_file(message, state)
+
+
+@router.message(Upload.waiting_for_title)
+async def process_title_invalid(message: types.Message) -> None:
+    await message.answer(
+        "Send a title text, or /skip, or send the media file directly with optional caption."
+    )
+
+
 @router.message(Command("skip"), Upload.waiting_for_metadata)
 async def skip_metadata(message: types.Message, state: FSMContext) -> None:
     await state.update_data(metadata={})
     await state.set_state(Upload.waiting_for_file)
-    await message.answer("Metadata skipped. Now send the media file.")
+    await message.answer(
+        "Metadata skipped. Now send the media file.\n"
+        "Optional file caption format:\n"
+        "Title | artist=Name;genre=Pop;tags=tag1,tag2"
+    )
 
 
 @router.message(Upload.waiting_for_metadata)
@@ -478,7 +512,11 @@ async def process_metadata(message: types.Message, state: FSMContext) -> None:
 
     await state.update_data(metadata=metadata)
     await state.set_state(Upload.waiting_for_file)
-    await message.answer("Metadata saved. Now send the media file.")
+    await message.answer(
+        "Metadata saved. Now send the media file.\n"
+        "Optional file caption format:\n"
+        "Title | artist=Name;genre=Pop;tags=tag1,tag2"
+    )
 
 
 @router.message(Upload.waiting_for_file, F.video | F.audio)
@@ -490,10 +528,16 @@ async def process_file(message: types.Message, state: FSMContext) -> None:
 
     data = await state.get_data()
     category = data.get("category")
-    title = data.get("title")
-    metadata = data.get("metadata", {}) if isinstance(data.get("metadata"), dict) else {}
+    title = str(data.get("title", "")).strip()
+    metadata = dict(data.get("metadata", {})) if isinstance(data.get("metadata"), dict) else {}
 
-    if not category or not title:
+    caption_title, caption_metadata = _parse_caption_payload(message.caption)
+    if caption_title:
+        title = caption_title
+    if caption_metadata:
+        metadata.update(caption_metadata)
+
+    if not category:
         await state.clear()
         await message.answer("Upload state lost. Please start again with /addvideo or /addmusic.")
         return
@@ -503,10 +547,18 @@ async def process_file(message: types.Message, state: FSMContext) -> None:
     if category == "video" and message.video:
         file_id = message.video.file_id
         file_unique_id = message.video.file_unique_id
+        if not title:
+            title = f"Video {file_unique_id[:8]}"
         metadata.setdefault("duration", message.video.duration)
     elif category == "music" and message.audio:
         file_id = message.audio.file_id
         file_unique_id = message.audio.file_unique_id
+        if not title:
+            title = (
+                (message.audio.title or "").strip()
+                or (message.audio.file_name or "").strip()
+                or f"Track {file_unique_id[:8]}"
+            )
         metadata.setdefault("duration", message.audio.duration)
         if message.audio.performer:
             metadata.setdefault("artist", message.audio.performer)

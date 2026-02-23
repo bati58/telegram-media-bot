@@ -17,6 +17,7 @@ Professional Telegram bot for sharing videos and music with role-based managemen
   - `admin`
 - Admin tools:
   - Add media (`/addvideo`, `/addvideobulk`, `/addmusic`, `/addmusicbulk`)
+  - Optional per-file caption metadata (`Title | artist=Name;genre=Pop;tags=tag1,tag2`)
   - Broadcast messages (`/broadcast`)
   - Health report (`/health`)
   - Export backup (`/export_content`)
