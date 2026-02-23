@@ -5,9 +5,12 @@ Professional Telegram bot for sharing videos and music with role-based managemen
 ## Features
 
 - User media library browsing by category (`Videos`, `Music`)
-- Search by title with clickable results
+- Advanced search with filters (`cat:`, `tag:`, `lang:`, `artist:`, `genre:`, `sort:`, `limit:`)
 - Media delivery by Telegram `file_id` (fast and storage-efficient)
 - Channel membership gate before content access
+- Favorites and playlists (create/list/add/remove/delete)
+- Upload deduplication by Telegram `file_unique_id`
+- Rich media metadata (artist, genre, tags, language, year, duration)
 - Role system:
   - `user`
   - `moderator`
@@ -18,10 +21,13 @@ Professional Telegram bot for sharing videos and music with role-based managemen
   - Health report (`/health`)
   - Export backup (`/export_content`)
   - Manage moderators (`/setmoderator`, `/removemoderator`)
+  - Audit trail view (`/audit`)
 - Staff tools (`moderator` + `admin`):
   - Stats (`/stats`)
   - Content listing (`/listcontent`)
   - Content deletion (`/delete`)
+- Global anti-spam rate limiting middleware
+- Audit logging for admin/staff/user actions
 - Structured error logging middleware
 - Periodic JSON backups
 - Optional SQLite -> MongoDB migration script
@@ -82,6 +88,9 @@ REQUIRED_CHANNELS=@your_public_channel
 ENABLE_PERIODIC_BACKUP=true
 BACKUP_INTERVAL_MINUTES=60
 BACKUP_DIRECTORY=backups
+RATE_LIMIT_WINDOW_SECONDS=15
+RATE_LIMIT_MAX_EVENTS=12
+RATE_LIMIT_EXEMPT_STAFF=true
 ```
 
 Notes:
@@ -111,8 +120,17 @@ python migrate_sqlite_to_mongo.py
 - `/start`
 - `/help`
 - `/myid`
-- `/search`
+- `/search [query]`
 - `/cancel`
+- `/favorites`
+- `/favorite <content_id>`
+- `/unfavorite <content_id>`
+- `/playlists`
+- `/createplaylist <name>`
+- `/playlist <playlist_id>`
+- `/addtoplaylist <playlist_id> <content_id>`
+- `/removefromplaylist <playlist_id> <content_id>`
+- `/deleteplaylist <playlist_id>`
 
 ### Moderator + Admin
 
@@ -130,6 +148,7 @@ python migrate_sqlite_to_mongo.py
 - `/setmoderator <id>`
 - `/removemoderator <id>`
 - `/export_content`
+- `/audit [n]`
 
 ## MongoDB Compass
 
@@ -138,6 +157,17 @@ Use your `MONGODB_URI` in Compass to inspect collections:
 - `users`
 - `content`
 - `counters`
+- `favorites`
+- `playlists`
+- `audit_logs`
+
+## Search Syntax
+
+Examples:
+
+- `/search hello`
+- `/search cat:music artist:adele`
+- `/search #gospel lang:en sort:newest limit:20`
 
 ## Security
 

@@ -37,8 +37,9 @@ def main_menu() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="Music", callback_data="category_music")],
             [
                 InlineKeyboardButton(text="Search", callback_data="search"),
-                InlineKeyboardButton(text="Help", callback_data="help"),
+                InlineKeyboardButton(text="My Library", callback_data="my_library"),
             ],
+            [InlineKeyboardButton(text="Help", callback_data="help")],
         ]
     )
 
@@ -100,4 +101,72 @@ def required_channels_keyboard(
 
     rows.append([InlineKeyboardButton(text="I Joined", callback_data=recheck_callback)])
     rows.append([InlineKeyboardButton(text="Back", callback_data="back_to_main")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def library_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Favorites", callback_data="library_favorites")],
+            [InlineKeyboardButton(text="Playlists", callback_data="library_playlists")],
+            [InlineKeyboardButton(text="Back", callback_data="back_to_main")],
+        ]
+    )
+
+
+def item_actions_keyboard(item_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Favorite", callback_data=f"fav_add_{item_id}"),
+                InlineKeyboardButton(text="Unfavorite", callback_data=f"fav_remove_{item_id}"),
+            ],
+            [InlineKeyboardButton(text="Add to Playlist", callback_data=f"pl_pick_{item_id}")],
+            [InlineKeyboardButton(text="My Library", callback_data="my_library")],
+        ]
+    )
+
+
+def playlists_keyboard(
+    playlists: list[tuple[int, str, int]],
+    *,
+    back_callback: str = "my_library",
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for playlist_id, name, items_count in playlists:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"{_truncate_title(name, 40)} ({items_count})",
+                    callback_data=f"playlist_open_{playlist_id}",
+                ),
+                InlineKeyboardButton(
+                    text="Delete",
+                    callback_data=f"playlist_delete_{playlist_id}",
+                ),
+            ]
+        )
+
+    rows.append([InlineKeyboardButton(text="Back", callback_data=back_callback)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def playlist_picker_keyboard(
+    playlists: list[tuple[int, str, int]],
+    *,
+    content_id: int,
+    back_callback: str = "library_playlists",
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for playlist_id, name, _items_count in playlists:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=_truncate_title(name, 40),
+                    callback_data=f"pl_add_{playlist_id}_{content_id}",
+                )
+            ]
+        )
+
+    rows.append([InlineKeyboardButton(text="Back", callback_data=back_callback)])
     return InlineKeyboardMarkup(inline_keyboard=rows)

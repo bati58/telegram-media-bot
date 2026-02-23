@@ -21,7 +21,16 @@ def _build_help_text(user_id: int) -> str:
         "/start - Open main menu",
         "/help - Show command help",
         "/myid - Show your Telegram user ID",
-        "/search - Search by title",
+        "/search [query] - Search with optional filters",
+        "/favorites - Show your favorites",
+        "/favorite <content_id> - Add item to favorites",
+        "/unfavorite <content_id> - Remove item from favorites",
+        "/playlists - Show your playlists",
+        "/createplaylist <name> - Create playlist",
+        "/playlist <playlist_id> - Show playlist items",
+        "/addtoplaylist <playlist_id> <content_id> - Add item to playlist",
+        "/removefromplaylist <playlist_id> <content_id> - Remove item from playlist",
+        "/deleteplaylist <playlist_id> - Delete a playlist",
         "/cancel - Cancel active search",
     ]
 
@@ -49,6 +58,7 @@ def _build_help_text(user_id: int) -> str:
                 "/setmoderator <id> - Grant moderator role",
                 "/removemoderator <id> - Revoke moderator role",
                 "/export_content - Export backup JSON",
+                "/audit [n] - Show recent audit logs",
                 "/cancel - Cancel current admin action",
             ]
         )

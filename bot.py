@@ -7,6 +7,7 @@ from config import BACKUP_INTERVAL_MINUTES, BOT_TOKEN, ENABLE_PERIODIC_BACKUP
 from database import init_db
 from handlers import admin, search, start, user
 from middlewares.error_logging import StructuredErrorMiddleware
+from middlewares.rate_limit import RateLimitMiddleware
 from utils import run_periodic_backup_loop
 
 logging.basicConfig(
@@ -17,6 +18,7 @@ logger = logging.getLogger("bot")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+dp.update.outer_middleware(RateLimitMiddleware())
 dp.update.outer_middleware(StructuredErrorMiddleware())
 
 init_db()

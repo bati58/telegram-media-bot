@@ -69,14 +69,18 @@ if not BOT_TOKEN:
 
 # Comma-separated Telegram user IDs, e.g. "12345,67890"
 ADMIN_IDS = _parse_admin_ids(os.getenv("ADMIN_IDS", "7048929478"))
-MODERATOR_IDS = _parse_admin_ids(os.getenv("MODERATOR_IDS", ""))
+MODERATOR_IDS = _parse_admin_ids(os.getenv("MODERATOR_IDS", "5020677340"))
 
 MONGODB_URI = os.getenv("MONGODB_URI")
 if not MONGODB_URI:
     raise RuntimeError("MONGODB_URI environment variable is required.")
 
-MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "telegram_media_bot")
-REQUIRED_CHANNELS = _parse_csv(os.getenv("REQUIRED_CHANNELS", ""))
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "mediabotdb")
+REQUIRED_CHANNELS = _parse_csv(os.getenv("REQUIRED_CHANNELS", "@InfinityLoungeHQ"))
 ENABLE_PERIODIC_BACKUP = _parse_bool(os.getenv("ENABLE_PERIODIC_BACKUP", "true"), True)
 BACKUP_INTERVAL_MINUTES = _parse_positive_int(os.getenv("BACKUP_INTERVAL_MINUTES", "60"), 60)
 BACKUP_DIRECTORY = os.getenv("BACKUP_DIRECTORY", "backups")
+
+RATE_LIMIT_WINDOW_SECONDS = _parse_positive_int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "15"), 15)
+RATE_LIMIT_MAX_EVENTS = _parse_positive_int(os.getenv("RATE_LIMIT_MAX_EVENTS", "12"), 12)
+RATE_LIMIT_EXEMPT_STAFF = _parse_bool(os.getenv("RATE_LIMIT_EXEMPT_STAFF", "true"), True)
